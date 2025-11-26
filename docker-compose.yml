@@ -1,0 +1,194 @@
+version: '3.8'
+
+services:
+  # Databases
+  mysql:
+    image: mysql:8
+    container_name: vrms-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: userdb
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - vrms-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  postgres:
+    image: postgres:15
+    container_name: vrms-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ngo_posting_db
+    ports:
+      - "5434:5434"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - vrms-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Logging
+  loki:
+    image: grafana/loki:latest
+    container_name: vrms-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - vrms-network
+
+  # Microservices
+  user-service:
+    build:
+      context: ./User-Service
+      dockerfile: Dockerfile
+    container_name: vrms-user-service
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/userdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - JWT_SECRET=dGhpc19pc19hX3Zlcnlfc2VjdXJlX2RlZmF1bHRfa2V5X2Zvcl9kZXZlbG9wbWVudF91c2Vfb25seQ==
+      - SERVER_PORT=8080
+      - LOKI_URL=http://loki:3100
+    depends_on:
+      mysql:
+        condition: service_healthy
+      loki:
+        condition: service_started
+    networks:
+      - vrms-network
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  ngo-posting-service:
+    build:
+      context: ./NGO-Postings-Service
+      dockerfile: Dockerfile
+    container_name: vrms-ngo-posting-service
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/ngo_posting_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver
+      - SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_JPA_SHOW_SQL=true
+      - SERVER_PORT=8082
+      - JWT_SECRET=dGhpc19pc19hX3Zlcnlfc2VjdXJlX2RlZmF1bHRfa2V5X2Zvcl9kZXZlbG9wbWVudF91c2Vfb25seQ==
+      - JWT_EXPIRATION=86400
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - vrms-network
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -f http://localhost:8082/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  matching-service:
+    build:
+      context: ./Matching-Service/matching
+      dockerfile: Dockerfile
+    container_name: vrms-matching-service
+    ports:
+      - "8081:8081"
+    environment:
+      - SERVER_PORT=8081
+      - SPRING_APPLICATION_NAME=matching-service
+      - POSTING_SERVICE_URL=http://ngo-posting-service:8082/api/v1/postings
+      - VOLUNTEER_SERVICE_URL=http://user-service:8080/api/v1/users/volunteers
+      - SPRING_CACHE_TYPE=simple
+      - JWT_SECRET=dGhpc19pc19hX3Zlcnlfc2VjdXJlX2RlZmF1bHRfa2V5X2Zvcl9kZXZlbG9wbWVudF91c2Vfb25seQ==
+    depends_on:
+      user-service:
+        condition: service_healthy
+      ngo-posting-service:
+        condition: service_healthy
+    networks:
+      - vrms-network
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -f http://localhost:8081/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  analytics-service:
+    build:
+      context: ./Analytics-Service
+      dockerfile: dockerfile
+    container_name: vrms-analytics-service
+    ports:
+      - "8000:8000"
+    environment:
+      - MYSQL_USER=root
+      - MYSQL_PASSWORD=root
+      - MYSQL_HOST=mysql
+      - MYSQL_DB=userdb
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - vrms-network
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -f http://localhost:8000/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./VRMS_Frontend/vrms-frontend
+      dockerfile: Dockerfile
+    container_name: vrms-frontend
+    ports:
+      - "5174:5174"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8080
+      - VITE_NGO_API_URL=http://localhost:8082
+      - VITE_MATCHING_API_URL=http://localhost:8081
+      - VITE_ANALYTICS_API_URL=http://localhost:8000
+    depends_on:
+      - user-service
+      - ngo-posting-service
+      - matching-service
+      - analytics-service
+    networks:
+      - vrms-network
+
+volumes:
+  mysql_data:
+  postgres_data:
+  loki_data:
+
+networks:
+  vrms-network:
+    driver: bridge
