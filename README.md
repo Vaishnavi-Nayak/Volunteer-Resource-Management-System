@@ -35,18 +35,37 @@ Each directory is a Git submodule, pointing to its own repository.
 
 ## Getting Started
 
-### Clone the VRMS Platform (Important: include submodules)
+### Quick Start with Docker (Recommended)
+
+The fastest way to run the entire VRMS platform locally:
 
 ```bash
+# Clone the repository
+git clone <repository-url>
+cd Volunteer-Resource-Management-System
 git clone --recurse-submodules https://github.com/udaysingh21/Volunteer-Resource-Management-System
 cd VRMS
 ```
 
-If you accidentally cloned without submodules:
+# Start all services
+./start-services.sh
 
-```bash
-git submodule update --init --recursive
+# Check service health
+./health-check.sh
 ```
+
+This will start all services on different ports:
+- **Frontend**: http://localhost:5174
+- **User Service**: http://localhost:8080  
+- **NGO Postings**: http://localhost:8082
+- **Matching Service**: http://localhost:8081
+- **Analytics**: http://localhost:8000
+
+See [DOCKER_SETUP.md](DOCKER_SETUP.md) for detailed configuration.
+
+### Manual Setup (Individual Services)
+
+If you prefer to run services individually, see the README in each service directory.
 
 ---
 

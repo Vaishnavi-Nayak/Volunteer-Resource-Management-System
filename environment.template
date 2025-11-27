@@ -1,0 +1,41 @@
+# VRMS Platform Environment Configuration
+# Copy this file to .env and customize as needed
+
+# Database Configuration
+# MySQL (User Service & Analytics)
+MYSQL_ROOT_PASSWORD=root
+MYSQL_DATABASE=userdb
+MYSQL_PORT=3306
+
+# PostgreSQL (NGO Postings Service)  
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=ngo_posting_db
+POSTGRES_PORT=5432
+
+# Service Ports
+USER_SERVICE_PORT=8080
+NGO_POSTINGS_PORT=8082
+MATCHING_SERVICE_PORT=8081
+ANALYTICS_SERVICE_PORT=8000
+FRONTEND_PORT=5174
+
+# JWT Configuration
+JWT_SECRET=dGhpc19pc19hX3Zlcnlfc2VjdXJlX2RlZmF1bHRfa2V5X2Zvcl9kZXZlbG9wbWVudF91c2Vfb25seQ==
+JWT_EXPIRATION=86400
+
+# Service URLs (for inter-service communication)
+USER_SERVICE_URL=http://user-service:8080
+NGO_POSTINGS_SERVICE_URL=http://ngo-posting-service:8082
+MATCHING_SERVICE_URL=http://matching-service:8081
+ANALYTICS_SERVICE_URL=http://analytics-service:8000
+
+# Frontend Configuration
+VITE_API_BASE_URL=http://localhost:8080
+VITE_NGO_API_URL=http://localhost:8082
+VITE_MATCHING_API_URL=http://localhost:8081
+VITE_ANALYTICS_API_URL=http://localhost:8000
+
+# Development Settings
+SPRING_PROFILES_ACTIVE=docker
+LOG_LEVEL=INFO
